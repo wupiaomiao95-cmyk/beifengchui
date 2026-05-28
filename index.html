@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>综合实践：以歌曲名为核心的情感主题连线</title>
+  <style>
+    :root {
+      --ink: #6f2017;
+      --ink-dark: #47120e;
+      --gold: #d7b878;
+      --paper: #f5e8d0;
+      --paper-2: #ead6b8;
+      --line: #8b2e22;
+      --ok: #3d7a4f;
+      --bad: #b93a2d;
+      --shadow: rgba(74, 29, 18, 0.22);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "STKaiti", "KaiTi", "Songti SC", "Microsoft YaHei", serif;
+      color: var(--ink-dark);
+      background:
+        radial-gradient(circle at 78% 6%, rgba(255, 245, 207, 0.9) 0 4%, rgba(255, 241, 199, 0.42) 10%, transparent 28%),
+        linear-gradient(110deg, rgba(82, 16, 13, 0.92) 0 4%, transparent 18%),
+        linear-gradient(180deg, rgba(255,255,255,0.25), rgba(255,255,255,0)),
+        #e8d3b2;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(91, 18, 15, 0.18), transparent 22%, transparent 76%, rgba(83, 41, 23, 0.12)),
+        repeating-linear-gradient(0deg, rgba(96, 55, 36, 0.035) 0 1px, transparent 1px 5px);
+      mix-blend-mode: multiply;
+      opacity: 0.75;
+    }
+
+    .curtain {
+      position: fixed;
+      top: -5px;
+      left: -8px;
+      width: 190px;
+      height: 180px;
+      background:
+        repeating-linear-gradient(105deg, rgba(124, 20, 18, 0.98) 0 18px, rgba(79, 9, 9, 0.98) 18px 32px),
+        #7b1612;
+      border-bottom-right-radius: 95% 70%;
+      box-shadow: 8px 12px 28px rgba(60, 8, 8, 0.38);
+      transform: rotate(-3deg);
+      z-index: 0;
+    }
+
+    .snow-scene {
+      position: fixed;
+      inset: auto 0 0 0;
+      height: 190px;
+      pointer-events: none;
+      opacity: 0.45;
+      background:
+        radial-gradient(circle at 8% 75%, #fff 0 2px, transparent 3px),
+        radial-gradient(circle at 24% 64%, #fff 0 2px, transparent 3px),
+        radial-gradient(circle at 54% 77%, #fff 0 2px, transparent 3px),
+        linear-gradient(to top, rgba(255,255,255,0.55), transparent 72%);
+    }
+
+    .tree {
+      position: fixed;
+      left: 26px;
+      bottom: 52px;
+      width: 95px;
+      height: 135px;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+
+    .tree div {
+      position: absolute;
+      bottom: 0;
+      left: 46px;
+      width: 2px;
+      height: 130px;
+      background: rgba(78, 44, 32, 0.55);
+      transform-origin: bottom;
+    }
+
+    .house {
+      position: fixed;
+      right: 22px;
+      bottom: 38px;
+      width: 150px;
+      height: 100px;
+      opacity: 0.42;
+      border: 4px solid rgba(83, 50, 32, 0.58);
+      background: rgba(134, 95, 66, 0.18);
+      transform: skewX(-8deg);
+      pointer-events: none;
+    }
+
+    .house::before {
+      content: "";
+      position: absolute;
+      left: -15px;
+      top: -47px;
+      width: 180px;
+      height: 45px;
+      background: rgba(82, 53, 35, 0.38);
+      clip-path: polygon(8% 100%, 50% 0, 100% 100%);
+    }
+
+    .house::after {
+      content: "";
+      position: absolute;
+      right: 22px;
+      top: 22px;
+      width: 50px;
+      height: 42px;
+      border: 3px solid rgba(83, 50, 32, 0.62);
+      background:
+        linear-gradient(90deg, transparent 47%, rgba(83, 50, 32, 0.5) 48% 52%, transparent 53%),
+        linear-gradient(0deg, transparent 47%, rgba(83, 50, 32, 0.5) 48% 52%, transparent 53%);
+    }
+
+    .page {
+      position: relative;
+      z-index: 1;
+      width: min(1180px, calc(100vw - 28px));
+      margin: 26px auto;
+      padding: 26px 32px 34px;
+      border-radius: 18px;
+      border: 2px solid rgba(116, 49, 35, 0.26);
+      background:
+        radial-gradient(circle at 50% 0%, rgba(255,255,255,0.36), transparent 24%),
+        linear-gradient(180deg, rgba(255, 250, 235, 0.88), rgba(235, 211, 178, 0.9));
+      box-shadow: 0 18px 50px rgba(70, 30, 18, 0.26);
+      backdrop-filter: blur(1px);
+      overflow: hidden;
+    }
+
+    .page::before,
+    .page::after {
+      content: "♪";
+      position: absolute;
+      color: rgba(124, 34, 25, 0.16);
+      font-size: 112px;
+      transform: rotate(-18deg);
+      pointer-events: none;
+    }
+
+    .page::before { right: 70px; bottom: -12px; }
+    .page::after { left: 30px; top: 112px; font-size: 72px; transform: rotate(14deg); }
+
+    header {
+      text-align: center;
+      padding: 4px 12px 12px;
+      position: relative;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--ink);
+      font-size: clamp(28px, 4vw, 48px);
+      letter-spacing: 4px;
+      text-shadow: 0 2px 0 rgba(255,255,255,0.55);
+      font-weight: 800;
+    }
+
+    .ornament {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin: 9px auto 8px;
+      color: rgba(122, 38, 28, 0.75);
+      font-size: 22px;
+    }
+
+    .ornament::before,
+    .ornament::after {
+      content: "";
+      width: min(260px, 28vw);
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(117, 42, 31, 0.62), transparent);
+    }
+
+    .subtitle {
+      margin: 0;
+      font-size: clamp(16px, 2vw, 20px);
+      color: rgba(71, 18, 14, 0.78);
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin: 16px 0 20px;
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+
+    .status {
+      min-width: min(760px, 100%);
+      text-align: center;
+      padding: 10px 15px;
+      border: 1px solid rgba(124, 44, 31, 0.24);
+      border-radius: 999px;
+      background: rgba(255, 248, 231, 0.64);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      color: rgba(71, 18, 14, 0.84);
+    }
+
+    button {
+      border: 0;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #9b3327, #6f2017);
+      color: #fff2d6;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 14px rgba(79, 19, 14, 0.25);
+      transition: transform 0.15s ease, filter 0.15s ease;
+    }
+
+    button:hover { transform: translateY(-1px); filter: brightness(1.06); }
+    button:active { transform: translateY(1px); }
+
+    .game-wrap {
+      position: relative;
+      min-height: 560px;
+      padding: 8px 10px 24px;
+    }
+
+    .columns {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      grid-template-columns: 0.8fr 1fr 1.15fr;
+      gap: clamp(22px, 4.4vw, 70px);
+      align-items: start;
+    }
+
+    .col-title {
+      margin: 0 auto 17px;
+      width: min(220px, 100%);
+      padding: 8px 14px;
+      border: 2px solid rgba(235, 198, 136, 0.75);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #9f3a2d, #6d1e16);
+      color: #fff0cf;
+      text-align: center;
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: 4px;
+      box-shadow: 0 3px 0 rgba(72, 18, 13, 0.32);
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      position: relative;
+      min-height: 68px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 15px;
+      border: 2px solid rgba(132, 52, 37, 0.22);
+      border-radius: 13px;
+      background: linear-gradient(180deg, rgba(255,248,232,0.94), rgba(240,220,190,0.91));
+      box-shadow: 0 8px 18px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.8);
+      cursor: pointer;
+      user-select: none;
+      outline: none;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
+    }
+
+    .card::before,
+    .card::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--line);
+      transform: translateY(-50%);
+      box-shadow: 0 0 0 3px rgba(139, 46, 34, 0.08);
+    }
+
+    .card::before { left: -5px; }
+    .card::after { right: -5px; }
+    .song::before { display: none; }
+    .theme::after { display: none; }
+
+    .card:hover,
+    .card:focus-visible {
+      transform: translateY(-3px);
+      box-shadow: 0 13px 24px rgba(74, 29, 18, 0.27), inset 0 1px 0 rgba(255,255,255,0.85);
+      border-color: rgba(132, 52, 37, 0.46);
+    }
+
+    .card.selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 4px rgba(215, 184, 120, 0.36), 0 14px 26px rgba(74, 29, 18, 0.28);
+      transform: translateY(-3px) scale(1.01);
+    }
+
+    .card.linked {
+      border-color: rgba(61, 122, 79, 0.66);
+      background: linear-gradient(180deg, rgba(255,250,236,0.98), rgba(232,222,187,0.96));
+    }
+
+    .card.dim { opacity: 0.48; }
+
+    .card.wrong {
+      border-color: rgba(185, 58, 45, 0.72);
+      animation: shake 0.3s ease-in-out;
+    }
+
+    .voice-tip {
+      position: fixed;
+      left: 50%;
+      top: 18%;
+      z-index: 11;
+      transform: translate(-50%, -12px) scale(0.96);
+      padding: 14px 28px;
+      border-radius: 999px;
+      border: 2px solid rgba(215, 184, 120, 0.9);
+      background: linear-gradient(180deg, rgba(255,248,232,0.98), rgba(236,215,181,0.98));
+      box-shadow: 0 16px 42px rgba(55, 16, 11, 0.28);
+      color: var(--ink);
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      opacity: 0;
+      pointer-events: none;
+      font-family: "STKaiti", "KaiTi", serif;
+    }
+
+    .voice-tip.show {
+      animation: voicePop 1.05s ease forwards;
+    }
+
+    .voice-tip.fail {
+      color: var(--bad);
+      border-color: rgba(185, 58, 45, 0.62);
+    }
+
+    @keyframes voicePop {
+      0% { opacity: 0; transform: translate(-50%, -12px) scale(0.96); }
+      18% { opacity: 1; transform: translate(-50%, 0) scale(1.04); }
+      70% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -10px) scale(0.98); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-7px); }
+      75% { transform: translateX(7px); }
+    }
+
+    .icon {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #a33b2d, #782218);
+      color: #fff4db;
+      font-size: 22px;
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.18), 0 3px 8px rgba(91, 22, 16, 0.28);
+    }
+
+    .text {
+      flex: 1;
+      font-size: clamp(16px, 1.82vw, 22px);
+      font-weight: 800;
+      line-height: 1.25;
+      color: var(--ink-dark);
+    }
+
+    .hint {
+      display: block;
+      margin-top: 4px;
+      font-size: 13px;
+      font-family: "Microsoft YaHei", sans-serif;
+      color: rgba(71, 18, 14, 0.55);
+      font-weight: 500;
+    }
+
+    .song-count {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 26px;
+      height: 26px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: rgba(111, 32, 23, 0.12);
+      color: var(--ink);
+      font-size: 14px;
+      font-family: "Microsoft YaHei", sans-serif;
+      margin-left: 5px;
+      vertical-align: middle;
+    }
+
+    svg.lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      overflow: visible;
+      pointer-events: none;
+    }
+
+    .connection {
+      stroke: var(--line);
+      stroke-width: 4;
+      stroke-linecap: round;
+      filter: drop-shadow(0 2px 1px rgba(255,255,255,0.65));
+      stroke-dasharray: 1000;
+      animation: draw 0.42s ease forwards;
+    }
+
+    .connection.theme-line { stroke: #7a3d18; }
+    .connection.answer-line { stroke: var(--ok); stroke-width: 5; }
+
+    @keyframes draw {
+      from { stroke-dashoffset: 1000; }
+      to { stroke-dashoffset: 0; }
+    }
+
+    .result-panel {
+      position: relative;
+      z-index: 2;
+      margin: 22px auto 0;
+      padding: 14px 18px;
+      border-radius: 15px;
+      border: 1px solid rgba(124, 44, 31, 0.22);
+      background: rgba(255, 248, 231, 0.64);
+      font-family: "Microsoft YaHei", sans-serif;
+      line-height: 1.75;
+      color: rgba(71, 18, 14, 0.84);
+      display: none;
+    }
+
+    .result-panel.show { display: block; }
+    .result-panel strong { color: var(--ink); }
+
+    .corner-note {
+      position: absolute;
+      right: 24px;
+      bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(111, 32, 23, 0.48);
+      font-size: 28px;
+      pointer-events: none;
+    }
+
+    .win-pop {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) scale(0.92);
+      z-index: 10;
+      width: min(450px, calc(100vw - 44px));
+      padding: 26px 24px;
+      border-radius: 22px;
+      border: 2px solid rgba(215, 184, 120, 0.84);
+      background: linear-gradient(180deg, rgba(255,248,232,0.98), rgba(235,211,178,0.98));
+      box-shadow: 0 24px 80px rgba(55, 16, 11, 0.36);
+      text-align: center;
+      display: none;
+      font-family: "Microsoft YaHei", sans-serif;
+    }
+
+    .win-pop.show {
+      display: block;
+      animation: pop 0.24s ease forwards;
+    }
+
+    @keyframes pop {
+      to { transform: translate(-50%, -50%) scale(1); }
+    }
+
+    .win-pop h2 {
+      margin: 0 0 10px;
+      color: var(--ink);
+      font-size: 32px;
+      font-family: "STKaiti", "KaiTi", serif;
+    }
+
+    .win-pop p {
+      margin: 0 0 18px;
+      font-size: 17px;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 900px) {
+      .page { padding: 20px 14px 28px; }
+      .game-wrap { min-height: 960px; }
+      .columns {
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+      .stack { gap: 12px; }
+      .col-title { margin-bottom: 10px; }
+      .card::before,
+      .card::after { display: none; }
+      svg.lines { display: none; }
+      .status { border-radius: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="curtain" aria-hidden="true"></div>
+  <div class="snow-scene" aria-hidden="true"></div>
+  <div class="tree" aria-hidden="true">
+    <div style="transform: rotate(-42deg); height: 78px;"></div>
+    <div style="transform: rotate(-26deg); height: 95px;"></div>
+    <div style="transform: rotate(-12deg); height: 118px;"></div>
+    <div style="transform: rotate(0deg); height: 132px;"></div>
+    <div style="transform: rotate(18deg); height: 105px;"></div>
+    <div style="transform: rotate(36deg); height: 72px;"></div>
+  </div>
+  <div class="house" aria-hidden="true"></div>
+
+  <main class="page">
+    <header>
+      <h1>综合实践：歌曲—情感—主题连线</h1>
+      <div class="ornament">❖</div>
+      <p class="subtitle">以歌曲名为核心：先点歌曲，再从打乱的选项中选择。只有答案正确时，连线才会成功。</p>
+    </header>
+
+    <div class="voice-tip" id="voiceTip" aria-hidden="true">你真棒</div>
+
+    <section class="toolbar" aria-live="polite">
+      <div id="status" class="status">先选择一首歌曲，再点击右侧情感或主题选项。选错不会连线。</div>
+      <button id="resetBtn" type="button">重新开始</button>
+      <button id="answerBtn" type="button">显示答案</button>
+      <button id="shuffleBtn" type="button">重新打乱</button>
+    </section>
+
+    <section class="game-wrap" id="game">
+      <svg class="lines" id="lines" aria-hidden="true"></svg>
+
+      <div class="columns">
+        <section class="column" aria-label="歌曲">
+          <h2 class="col-title">歌曲名</h2>
+          <div class="stack">
+            <div class="card song" tabindex="0" role="button" data-type="song" data-id="north" data-label="《北风吹》">
+              <span class="icon">♫</span>
+              <span class="text">《北风吹》<span class="song-count" id="count-north">0/2</span><span class="hint">正确连接：情感 + 主题</span></span>
+            </div>
+            <div class="card song" tabindex="0" role="button" data-type="song" data-id="rope" data-label="《扎红头绳》">
+              <span class="icon">♪</span>
+              <span class="text">《扎红头绳》<span class="song-count" id="count-rope">0/2</span><span class="hint">正确连接：情感 + 主题</span></span>
+            </div>
+          </div>
+        </section>
+
+        <section class="column" aria-label="情感">
+          <h2 class="col-title">情感</h2>
+          <div class="stack" id="emotionStack">
+            <div class="card option emotion" tabindex="0" role="button" data-type="emotion" data-id="anger" data-label="愤怒控诉"><span class="icon">⚡</span><span class="text">愤怒控诉</span></div>
+            <div class="card option emotion" tabindex="0" role="button" data-type="emotion" data-id="warm" data-label="温暖酸楚"><span class="icon">♥</span><span class="text">温暖酸楚</span></div>
+            <div class="card option emotion" tabindex="0" role="button" data-type="emotion" data-id="fear" data-label="惊恐紧张"><span class="icon">!</span><span class="text">惊恐紧张</span></div>
+            <div class="card option emotion" tabindex="0" role="button" data-type="emotion" data-id="joy" data-label="喜悦期盼"><span class="icon">☻</span><span class="text">喜悦期盼</span></div>
+            <div class="card option emotion" tabindex="0" role="button" data-type="emotion" data-id="funny" data-label="轻松诙谐"><span class="icon">♧</span><span class="text">轻松诙谐</span></div>
+            <div class="card option emotion" tabindex="0" role="button" data-type="emotion" data-id="calm" data-label="平静淡然"><span class="icon">☁</span><span class="text">平静淡然</span></div>
+          </div>
+        </section>
+
+        <section class="column" aria-label="主题">
+          <h2 class="col-title">主题</h2>
+          <div class="stack" id="themeStack">
+            <div class="card option theme" tabindex="0" role="button" data-type="theme" data-id="father" data-label="父女深情"><span class="icon">⌂</span><span class="text">父女深情</span></div>
+            <div class="card option theme" tabindex="0" role="button" data-type="theme" data-id="war" data-label="战争胜利的欢庆"><span class="icon">⚑</span><span class="text">战争胜利的欢庆</span></div>
+            <div class="card option theme" tabindex="0" role="button" data-type="theme" data-id="better" data-label="对美好生活的向往"><span class="icon">✹</span><span class="text">对美好生活的向往</span></div>
+            <div class="card option theme" tabindex="0" role="button" data-type="theme" data-id="friend" data-label="友情陪伴"><span class="icon">☷</span><span class="text">友情陪伴</span></div>
+            <div class="card option theme" tabindex="0" role="button" data-type="theme" data-id="homesick" data-label="离别思乡"><span class="icon">☾</span><span class="text">离别思乡</span></div>
+            <div class="card option theme" tabindex="0" role="button" data-type="theme" data-id="nature" data-label="自然风光的赞美"><span class="icon">✿</span><span class="text">自然风光的赞美</span></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="result-panel" id="resultPanel"></section>
+      <div class="corner-note" aria-hidden="true">♬ ♫</div>
+    </section>
+
+    <div class="win-pop" id="winPop" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+      <h2 id="winTitle">全部连对！</h2>
+      <p>两首歌曲的情感与主题都成功匹配。<br>可以重新打乱，再来一轮课堂抢答。</p>
+      <button id="againBtn" type="button">再玩一次</button>
+    </div>
+  </main>
+
+  <script>
+    const game = document.getElementById('game');
+    const svg = document.getElementById('lines');
+    const statusEl = document.getElementById('status');
+    const resetBtn = document.getElementById('resetBtn');
+    const answerBtn = document.getElementById('answerBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    const againBtn = document.getElementById('againBtn');
+    const resultPanel = document.getElementById('resultPanel');
+    const winPop = document.getElementById('winPop');
+    const voiceTip = document.getElementById('voiceTip');
+    const emotionStack = document.getElementById('emotionStack');
+    const themeStack = document.getElementById('themeStack');
+
+    const correctMap = {
+      north: ['joy', 'better'],
+      rope: ['warm', 'father']
+    };
+
+    const answerText = {
+      north: {
+        song: '《北风吹》',
+        emotion: '喜悦期盼',
+        theme: '对美好生活的向往'
+      },
+      rope: {
+        song: '《扎红头绳》',
+        emotion: '温暖酸楚',
+        theme: '父女深情'
+      }
+    };
+
+    let selectedSong = null;
+    let connections = [];
+
+    function allCards() {
+      return Array.from(document.querySelectorAll('.card'));
+    }
+
+    function songs() {
+      return Array.from(document.querySelectorAll('.song'));
+    }
+
+    function options() {
+      return Array.from(document.querySelectorAll('.option'));
+    }
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+    }
+
+    function showVoiceTip(text, type) {
+      voiceTip.textContent = text;
+      voiceTip.classList.remove('show', 'fail');
+      if (type === 'fail') voiceTip.classList.add('fail');
+      void voiceTip.offsetWidth;
+      voiceTip.classList.add('show');
+    }
+
+    function playTone(type) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const now = ctx.currentTime;
+      const master = ctx.createGain();
+      master.connect(ctx.destination);
+      master.gain.setValueAtTime(0.0001, now);
+      master.gain.exponentialRampToValueAtTime(type === 'success' ? 0.42 : 0.5, now + 0.025);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + 1.05);
+
+      if (type === 'success') {
+        const notes = [523.25, 659.25, 783.99, 1046.5];
+        notes.forEach((freq, index) => {
+          const t = now + index * 0.13;
+          const osc = ctx.createOscillator();
+          const noteGain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, t);
+          noteGain.gain.setValueAtTime(0.0001, t);
+          noteGain.gain.exponentialRampToValueAtTime(0.55, t + 0.018);
+          noteGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+          osc.connect(noteGain);
+          noteGain.connect(master);
+          osc.start(t);
+          osc.stop(t + 0.2);
+        });
+      } else {
+        for (let i = 0; i < 2; i++) {
+          const t = now + i * 0.26;
+          const osc = ctx.createOscillator();
+          const noteGain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(185, t);
+          osc.frequency.exponentialRampToValueAtTime(92, t + 0.22);
+          noteGain.gain.setValueAtTime(0.0001, t);
+          noteGain.gain.exponentialRampToValueAtTime(0.7, t + 0.02);
+          noteGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+          osc.connect(noteGain);
+          noteGain.connect(master);
+          osc.start(t);
+          osc.stop(t + 0.25);
+        }
+      }
+
+      setTimeout(() => ctx.close(), 1300);
+    }
+
+    function playFeedback(text, type) {
+      showVoiceTip(text, type);
+      playTone(type);
+    }
+
+    function getCard(id) {
+      return document.querySelector(`[data-id="${id}"]`);
+    }
+
+    function centerPoint(card, side) {
+      const wrapRect = game.getBoundingClientRect();
+      const rect = card.getBoundingClientRect();
+      return {
+        x: side === 'left' ? rect.left - wrapRect.left : rect.right - wrapRect.left,
+        y: rect.top + rect.height / 2 - wrapRect.top
+      };
+    }
+
+    function linePath(from, to) {
+      const start = centerPoint(from, 'right');
+      const end = centerPoint(to, 'left');
+      const dx = Math.max(60, (end.x - start.x) * 0.38);
+      return `M ${start.x} ${start.y} C ${start.x + dx} ${start.y}, ${end.x - dx} ${end.y}, ${end.x} ${end.y}`;
+    }
+
+    function redrawLines() {
+      svg.innerHTML = '';
+      connections.forEach(conn => {
+        const from = getCard(conn.song);
+        const to = getCard(conn.option);
+        if (!from || !to) return;
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', linePath(from, to));
+        path.setAttribute('fill', 'none');
+        const isTheme = to.dataset.type === 'theme';
+        const isAnswer = conn.answer;
+        path.setAttribute('class', `connection ${isTheme ? 'theme-line' : ''} ${isAnswer ? 'answer-line' : ''}`);
+        svg.appendChild(path);
+      });
+    }
+
+    function refreshVisuals() {
+      allCards().forEach(card => card.classList.remove('selected', 'linked', 'dim'));
+
+      if (selectedSong) {
+        selectedSong.classList.add('selected');
+        songs().forEach(song => {
+          if (song !== selectedSong) song.classList.add('dim');
+        });
+      }
+
+      connections.forEach(conn => {
+        getCard(conn.song)?.classList.add('linked');
+        getCard(conn.option)?.classList.add('linked');
+      });
+
+      songs().forEach(song => {
+        const count = connections.filter(conn => conn.song === song.dataset.id).length;
+        const badge = document.getElementById(`count-${song.dataset.id}`);
+        if (badge) badge.textContent = `${count}/2`;
+      });
+
+      redrawLines();
+      checkWin();
+    }
+
+    function flashWrong(card) {
+      card.classList.remove('wrong');
+      void card.offsetWidth;
+      card.classList.add('wrong');
+      setTimeout(() => card.classList.remove('wrong'), 360);
+    }
+
+    function selectSong(song) {
+      selectedSong = song;
+      resultPanel.classList.remove('show');
+      winPop.classList.remove('show');
+      setStatus(`已选择${song.dataset.label}，请在右侧选择它对应的情感或主题。选错不会出现连线。`);
+      refreshVisuals();
+    }
+
+    function isCorrect(songId, optionId) {
+      return correctMap[songId]?.includes(optionId);
+    }
+
+    function isAlreadyConnected(songId, optionId) {
+      return connections.some(conn => conn.song === songId && conn.option === optionId);
+    }
+
+    function toggleCorrectOption(option) {
+      if (!selectedSong) {
+        setStatus('请先选择左侧歌曲名，再点击右侧情感或主题。');
+        flashWrong(option);
+        return;
+      }
+
+      const songId = selectedSong.dataset.id;
+      const optionId = option.dataset.id;
+      const typeName = option.dataset.type === 'emotion' ? '情感' : '主题';
+
+      if (!isCorrect(songId, optionId)) {
+        setStatus(`再来一次：${selectedSong.dataset.label} 与“${option.dataset.label}”不匹配，连线失败。`);
+        playFeedback('再来一次', 'fail');
+        flashWrong(option);
+        flashWrong(selectedSong);
+        return;
+      }
+
+      if (isAlreadyConnected(songId, optionId)) {
+        setStatus(`这条线已经连对了：${selectedSong.dataset.label} → ${option.dataset.label}`);
+        return;
+      }
+
+      connections = connections.filter(conn => {
+        const existingOption = getCard(conn.option);
+        return !(conn.song === songId && existingOption?.dataset.type === option.dataset.type);
+      });
+
+      connections.push({ song: songId, option: optionId, answer: false });
+      resultPanel.classList.remove('show');
+      setStatus(`正确！${selectedSong.dataset.label} → ${typeName}“${option.dataset.label}”连线成功。`);
+      playFeedback('你真棒', 'success');
+      refreshVisuals();
+    }
+
+    function shuffleChildren(container) {
+      const items = Array.from(container.children);
+      for (let i = items.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [items[i], items[j]] = [items[j], items[i]];
+      }
+      items.forEach(item => container.appendChild(item));
+    }
+
+    function shuffleOptionsOnly() {
+      shuffleChildren(emotionStack);
+      shuffleChildren(themeStack);
+      redrawLines();
+    }
+
+    function resetGame(shouldShuffle = false) {
+      selectedSong = null;
+      connections = [];
+      resultPanel.classList.remove('show');
+      winPop.classList.remove('show');
+      setStatus('先选择一首歌曲，再点击右侧情感或主题选项。选错不会连线。');
+      if (shouldShuffle) shuffleOptionsOnly();
+      refreshVisuals();
+    }
+
+    function showAnswer() {
+      connections = [
+        { song: 'north', option: 'joy', answer: true },
+        { song: 'north', option: 'better', answer: true },
+        { song: 'rope', option: 'warm', answer: true },
+        { song: 'rope', option: 'father', answer: true }
+      ];
+      selectedSong = null;
+      resultPanel.innerHTML = `
+        <strong>正确答案</strong>
+        <p><strong>${answerText.north.song}</strong><br>情感：${answerText.north.emotion}<br>主题：${answerText.north.theme}</p>
+        <p><strong>${answerText.rope.song}</strong><br>情感：${answerText.rope.emotion}<br>主题：${answerText.rope.theme}</p>
+      `;
+      resultPanel.classList.add('show');
+      setStatus('答案已显示：绿色线为正确搭配。');
+      refreshVisuals();
+    }
+
+    function checkWin() {
+      const won = Object.entries(correctMap).every(([songId, optionIds]) => {
+        return optionIds.every(optionId => isAlreadyConnected(songId, optionId));
+      });
+
+      if (won && connections.length === 4 && !resultPanel.classList.contains('show')) {
+        setTimeout(() => winPop.classList.add('show'), 300);
+      }
+    }
+
+    function bindCards() {
+      allCards().forEach(card => {
+        card.addEventListener('click', () => {
+          if (card.dataset.type === 'song') selectSong(card);
+          else toggleCorrectOption(card);
+        });
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (card.dataset.type === 'song') selectSong(card);
+            else toggleCorrectOption(card);
+          }
+        });
+      });
+    }
+
+    bindCards();
+    resetBtn.addEventListener('click', () => resetGame(false));
+    answerBtn.addEventListener('click', showAnswer);
+    shuffleBtn.addEventListener('click', () => resetGame(true));
+    againBtn.addEventListener('click', () => resetGame(true));
+    window.addEventListener('resize', redrawLines);
+    window.addEventListener('scroll', redrawLines, { passive: true });
+
+    shuffleOptionsOnly();
+    refreshVisuals();
+  </script>
+</body>
+</html>
